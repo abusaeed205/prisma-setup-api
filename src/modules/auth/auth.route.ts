@@ -1,10 +1,9 @@
 import { Router } from "express";
 import { autController } from "./auth.controller";
 
+const router = Router();
 
-const router=Router()
+router.post("/login", autController.loginUser);
+router.post("/refresh-token", autController.refreshToken);
 
-router.post("/login",autController.loginUser)
-
-
-export const authRouter=router
+export const authRouter = router;

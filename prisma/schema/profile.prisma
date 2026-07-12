@@ -1,11 +1,12 @@
-model profile{
-    id String @id @default(uuid())
-    profilePhoto String?
-    bio String?
-    userId String @unique
-    user User @relation(fields: [userId], references: [id])
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
-    @@map("profiles")
-}
+model Profile {
+  id           String   @id @default(uuid())
+  profilePhoto String?
+  bio          String?
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
+  // @@map() Prisma Model-এর নাম এবং Database Table-এর নাম আলাদা রাখতে ব্যবহার করা হয়।
+  @@map("profiles")
+}
