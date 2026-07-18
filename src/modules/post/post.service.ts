@@ -1,9 +1,23 @@
 import { CommentStatus, PostStatus } from "../../../generated/prisma/enums";
 import { prisma } from "../../lib/prisma";
-import { Payload } from "./../../../generated/prisma/internal/prismaNamespace";
-import { ICreatePostPayload } from "./post.interface";
+import { ICreatePostPayload, IpostQuery } from "./post.interface";
+import { PostWhereInput } from "../../../generated/prisma/models";
 
 const postCreate = async (Payload: ICreatePostPayload, userId: string) => {
+  const user = await prisma.user.findUniqueOrThrow({
+    where: {
+      id: userId,
+    },
+    include: {
+      subscription: true,
+    },
+  });
+
+  if (Payload.isPremium && user.subscription?.status !== "ACTIVE") {
+    throw new Error(
+      "You are not a premium user.So you can not create premium content",
+    );
+  }
   const result = await prisma.post.create({
     data: {
       ...Payload,
@@ -16,8 +30,94 @@ const postCreate = async (Payload: ICreatePostPayload, userId: string) => {
 
 // get all posts logic
 
-const getAllPosts = async () => {
+const getAllPosts = async (query: IpostQuery) => {
+  // pagination 1/2
+  const limit = query.limit ? Number(query.limit) : 10;
+  const page = query.page ? Number(query.page) : 1;
+  const skip = (page - 1) * limit;
+  // শর্টিং
+  const sortBy = query.sortBy ? query.sortBy : "createdAt";
+  const SortOrder = query.sortOrder ? query.sortOrder : "desc";
+
+  const tags = query.tags ? JSON.parse(query.tags as string) : null;
+  const tagsArray = Array.isArray(tags) ? tags : [];
+
+  const andConditions: PostWhereInput[] = [];
+  if (query.searchTerm) {
+    andConditions.push({
+      OR: [
+        {
+          title: {
+            contains: query.searchTerm,
+            mode: "insensitive",
+          },
+        },
+        {
+          content: {
+            contains: query.searchTerm,
+            mode: "insensitive",
+          },
+        },
+      ],
+    });
+  }
+
+  if (query.title) {
+    andConditions.push({
+      title: query.title,
+    });
+  }
+
+  if (query.content) {
+    andConditions.push({
+      content: query.content,
+    });
+  }
+
+  if (query.authorId) {
+    andConditions.push({
+      authorId: query.authorId,
+    });
+  }
+
+  if (query.isFeatured) {
+    andConditions.push({
+      isFeatured: Boolean(query.isFeatured),
+    });
+  }
+
+  if (query.tags) {
+    andConditions.push({
+      tags: {
+        hasSome: tagsArray,
+      },
+    });
+  }
+
+  if (query.status) {
+    andConditions.push({
+      status: query.status,
+    });
+  }
+
+  andConditions.push({
+    isPremium: false,
+  });
+
   const posts = await prisma.post.findMany({
+    where: {
+      AND: andConditions,
+    },
+
+    // পেজিনেশন 2/2
+    take: limit,
+    skip: skip,
+
+    orderBy: {
+      // sortby SortOrder
+      [sortBy]: SortOrder,
+    },
+
     // include এর মাধ্যমে তার নাম দেখাবে এবং post এর নিচের কমেন্ট গুলোও দেখাবে
     include: {
       author: {
@@ -28,7 +128,22 @@ const getAllPosts = async () => {
       comment: true,
     },
   });
-  return posts;
+
+  const totalPostCount = await prisma.post.count({
+    where: {
+      AND: andConditions,
+    },
+  });
+
+  return {
+    data: posts,
+    meta: {
+      page: page,
+      limit: limit,
+      total: totalPostCount,
+      totalPages: Math.ceil(totalPostCount / limit),
+    },
+  };
 };
 
 // get single post logic
@@ -47,6 +162,7 @@ const getPostById = async (postId: string) => {
     const post = await tx.post.findUniqueOrThrow({
       where: {
         id: postId,
+        isPremium: false,
       },
       include: {
         author: {

@@ -1,10 +1,8 @@
-import { Payload } from "./../../../generated/prisma/internal/prismaNamespace";
 import { NextFunction, Request, response, Response } from "express";
 import { catchAsync } from "../../utils/catchAsync";
 import { postService } from "./post.service";
 import { sendResponse } from "../../utils/sendResponse";
 import httpStatus from "http-status";
-import { PostStatus } from "../../../generated/prisma/enums";
 
 const postCreate = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
@@ -24,12 +22,14 @@ const postCreate = catchAsync(
 
 const getAllPost = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
-    const result = await postService.getAllPosts();
+    const query = req.query;
+    const result = await postService.getAllPosts(query);
     sendResponse(res, {
       success: true,
       statusCode: httpStatus.OK,
       message: "Posts Retrieved Successfully",
-      data: result,
+      data: result.data,
+      meta: result.meta,
     });
   },
 );
